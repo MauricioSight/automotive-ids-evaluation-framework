@@ -1,12 +1,18 @@
 import argparse
 import json
 
-from feature_generator import cnn_ids_feature_generator
+from feature_generator import (
+    cnn_ids_feature_generator, 
+    anomaly_detection_feature_generator,
+)
 from models import (
     conv_net_ids,
     multiclass_conv_net_ids,
     pruned_conv_net_ids,
     sklearn_classifier,
+    cae_anomaly_detection,
+    lstmae_anomaly_detection,
+    seqwatch,
 )
 from model_train_validation import (
     pytorch_model_train_validate,
@@ -14,7 +20,8 @@ from model_train_validation import (
 )
 
 AVAILABLE_FEATURE_GENERATORS = {
-    "CNNIDSFeatureGenerator": cnn_ids_feature_generator.CNNIDSFeatureGenerator
+    "CNNIDSFeatureGenerator": cnn_ids_feature_generator.CNNIDSFeatureGenerator,
+    "AnomalyDetectionFeatureGenerator": anomaly_detection_feature_generator.AnomalyDetectionFeatureGenerator,
 }
 
 AVAILABLE_IDS = {
@@ -22,6 +29,9 @@ AVAILABLE_IDS = {
     "MultiClassCNNIDS": multiclass_conv_net_ids.MultiClassConvNetIDS,
     "PrunedCNNIDS": pruned_conv_net_ids.PrunedConvNetIDS,
     "SklearnClassifier": sklearn_classifier.SklearnClassifier,
+    "CAEAnomalyDetector": cae_anomaly_detection.CAEAnomalyDetector,
+    "LSTMAEAnomalyDetector": lstmae_anomaly_detection.LSTMAEAnomalyDetector,
+    "SeqWatch": seqwatch.SeqWatch,
 }
 
 AVAILABLE_FRAMEWORKS = {
@@ -52,6 +62,9 @@ def main():
     feature_generator_name = feat_gen_config_dict['feature_generator']
     feature_generator_config = feat_gen_config_dict['config']
     feature_generator_load_paths = feat_gen_config_dict['load_paths']
+    w_size = feature_generator_config['window_size']
+    number_of_bytes = feature_generator_config['number_of_bytes']
+    hidden_size = model_specs_dict['hyperparameters'].get('hidden_size', None)
 
     if feature_generator_name not in AVAILABLE_FEATURE_GENERATORS:
         raise KeyError(f"Selected feature generator: {feature_generator_name} is NOT available!")
@@ -78,13 +91,16 @@ def main():
                 model = AVAILABLE_IDS[model_name](number_of_outputs=num_outputs)
             else:
                 model = AVAILABLE_IDS[model_name]()
+        if model_name in ['CAEAnomalyDetector', 'LSTMAEAnomalyDetector', 'SeqWatch']:
+            model = AVAILABLE_IDS[model_name](w_size=w_size, input_size=number_of_bytes, hidden_size=hidden_size)
         print(f">> {model_name} was created with {num_outputs} outputs")
     elif framework == "sklearn":
         model = AVAILABLE_IDS[model_name](model_specs_dict)
 
     print("> Initializing model training and evaluation...")
 
-    train_validator = AVAILABLE_FRAMEWORKS[framework](model, model_specs_dict)
+    print(model)
+    train_validator = AVAILABLE_FRAMEWORKS[framework](model, model_specs_dict, feat_gen_config_dict)
     train_validator.execute(data)
 
     print("Model trained successfully!")

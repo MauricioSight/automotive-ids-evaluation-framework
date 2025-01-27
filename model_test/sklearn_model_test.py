@@ -33,7 +33,7 @@ class SklearnModelTest(abstract_model_test.AbstractModelTest):
         self._run_id = f"{datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}_sklearn_test"
 
         # TODO: Get this from json config file
-        art_path = "/home/lfml/workspace/artifacts"
+        art_path = "./workspace/artifacts"
         self._artifacts_path = f"{art_path}/{self._run_id}"
 
         if not os.path.exists(self._artifacts_path):

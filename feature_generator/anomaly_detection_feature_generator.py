@@ -1,0 +1,476 @@
+import gc
+import pandas as pd
+import numpy as np
+import typing
+import time
+from scapy.all import *
+
+from . import abstract_feature_generator
+from . import labeling_schemas
+
+from sklearn.preprocessing import OneHotEncoder
+
+DEFAULT_WINDOW_SIZE = 44
+DEFAULT_NUMBER_OF_BYTES = 58
+DEFAULT_WINDOW_SLIDE = 1
+AVTP_PACKETS_LENGHT = 438
+DEFAULT_LABELING_SCHEMA = "AVTP_Intrusion_dataset"
+DEFAULT_DATASET = "AVTP_Intrusion"
+DEFAULT_SUM_X = False
+
+LABELING_SCHEMA_FACTORY = {
+    "AVTP_Intrusion_dataset": labeling_schemas.avtp_intrusion_labeling_schema,
+    "TOW_IDS_dataset_one_class": labeling_schemas.tow_ids_one_class_labeling_schema,
+    "TOW_IDS_dataset_multi_class": labeling_schemas.tow_ids_multi_class_labeling_schema,
+    "IN_VEHICLE_dataset_multi_class": labeling_schemas.invehicle_intrusion_labeling_schema,
+}
+
+class AnomalyDetectionFeatureGenerator(abstract_feature_generator.AbstractFeatureGenerator):
+    def __init__(self, config: typing.Dict):
+        self._window_size = config.get('window_size', DEFAULT_WINDOW_SIZE)
+        self._number_of_bytes = config.get('number_of_bytes', DEFAULT_NUMBER_OF_BYTES)
+        self._window_slide = config.get('window_slide', DEFAULT_WINDOW_SLIDE)
+        self._number_of_columns = self._number_of_bytes
+        self._labeling_schema = config.get('labeling_schema', DEFAULT_LABELING_SCHEMA)
+        self._sum_x = config.get('sum_x', DEFAULT_SUM_X)
+        self._data_suffix = config.get('suffix')
+        self._is_supervised = config.get('is_supervised')
+
+        self._multiclass = config.get('multiclass', False)
+
+        self._dataset = config.get('dataset', DEFAULT_DATASET)
+
+        self._output_path_suffix = f"{self._labeling_schema}_Wsize_{self._window_size}_Cols_{self._number_of_columns}_Wslide_{self._window_slide}_MC_{self._multiclass}_sumX_{self._sum_x}"
+
+        self._filter_avtp_packets = True if (self._labeling_schema) == "AVTP_Intrusion_dataset" else False
+        print(f"filter_avtp_packets = {self._filter_avtp_packets}")
+
+    def generate_features(self, paths_dictionary: typing.Dict):
+        CNN_IDS_FEAT_GEN_AVAILABLE_DATASETS = {
+            "AVTP_Intrusion_dataset": self.__avtp_dataset_generate_features,
+            "TOW_IDS_dataset": self.__tow_ids_dataset_generate_features,
+            "IN_VEHICLE_dataset": self.__in_vehicle_dataset_generate_features,
+        }
+
+        if self._dataset not in CNN_IDS_FEAT_GEN_AVAILABLE_DATASETS:
+            raise KeyError(f"Selected dataset: {self._dataset} is NOT available for CNN IDS Feature Generator!")
+
+        feature_generator = CNN_IDS_FEAT_GEN_AVAILABLE_DATASETS[self._dataset](paths_dictionary)
+
+    def __tow_ids_dataset_generate_features(self, paths_dictionary: typing.Dict):
+        # Load raw packets
+        labels = pd.read_csv(paths_dictionary["y_train_path"], header=None, names=["index", "Class", "Description"])
+        labels = labels.drop(columns=["index"])
+        converted_packets_list = []
+        raw_packets = rdpcap(paths_dictionary["training_packets_path"])
+
+        print(">> Loading raw packets...")
+        for raw_packet in raw_packets:
+
+            converted_packet = np.frombuffer(raw(raw_packet), dtype='uint8')
+
+            converted_packet_len = len(converted_packet)
+            if converted_packet_len < self._number_of_bytes:
+                bytes_to_pad = self._number_of_bytes - converted_packet_len
+                converted_packet = np.pad(converted_packet, (0, bytes_to_pad), 'constant')
+            else:
+                converted_packet = converted_packet[0:self._number_of_bytes]
+
+            converted_packets_list.append(converted_packet)
+
+        converted_packets = np.array(converted_packets_list, dtype='uint8')
+        converted_packets = converted_packets / 255.0 # Normalize value
+
+        # Preprocess packets
+        print(">> Preprocessing raw packets...")
+        preprocessed_packets = self.__preprocess_raw_packets(converted_packets, split_into_nibbles=False)
+
+        print(f"len_preprocessed_packets = {len(preprocessed_packets)}")
+        print(f"preprocessed_packets[0] = {preprocessed_packets[0]}")
+
+        # Aggregate features and labels
+        print(">> Aggregating and labeling...")
+        aggregated_X, aggregated_y = self.__aggregate_based_on_window_size(preprocessed_packets, labels)
+
+        print(aggregated_X.shape)
+        np.savez(f"{paths_dictionary['output_path']}/X_{self._data_suffix}_{self._output_path_suffix}", aggregated_X)
+
+        y_df = pd.DataFrame(aggregated_y, columns=["Class"])
+        y_df.to_csv(f"{paths_dictionary['output_path']}/y_{self._data_suffix}_{self._output_path_suffix}.csv")
+
+    def __avtp_dataset_generate_features(self, paths_dictionary: typing.Dict):
+        raw_injected_only_packets = self.__read_raw_packets(paths_dictionary['injected_only_frame_path'])
+        injected_only_packets_array = self.__convert_raw_packets(raw_injected_only_packets)
+
+        X = np.empty(shape=(0, self._window_size, self._number_of_columns), dtype='float32')
+        y = np.array([], dtype='float32')
+
+        for injected_raw_packets_path in paths_dictionary['injected_data_paths']:
+            # Load raw packets
+            raw_packets = self.__read_raw_packets(injected_raw_packets_path)
+            print(len(raw_packets))
+
+            # Convert loaded packets to np array with float32_t size
+            packets_array = self.__convert_raw_packets(raw_packets)
+
+            # Preprocess packets
+            preprocessed_packets = self.__preprocess_raw_packets(packets_array, split_into_nibbles=False)
+
+            # Generate labels
+            labels = self.__generate_labels(packets_array, injected_only_packets_array)
+
+            # Aggregate features and labels
+            aggregated_X, aggregated_y = self.__aggregate_based_on_window_size(preprocessed_packets, labels)
+            aggregated_y = np.array(aggregated_y, dtype='float32')
+
+            # Concatenate both indoors injected packets
+            X = np.concatenate((X, aggregated_X), axis=0, dtype='float32')
+            y = np.concatenate((y, aggregated_y), axis=0, dtype='float32')
+
+            print(X.shape, y.shape)
+
+            np.savez(f"{paths_dictionary['output_path']}/X_{self._data_suffix}_{self._output_path_suffix}", X)
+            np.savez(f"{paths_dictionary['output_path']}/y_{self._data_suffix}_{self._output_path_suffix}", y)
+
+    def __in_vehicle_dataset_generate_features(self, paths_dictionary: typing.Dict):
+        X = np.empty(shape=(0, self._window_size, self._number_of_columns), dtype='float32')
+        y_df = pd.DataFrame([], columns=["label"])
+
+        for injected_raw_packets_path in paths_dictionary['injected_paths']:
+            data = pd.read_csv(injected_raw_packets_path, header=None, names=["timestamp", "can_id", "dlc", "payload", "label"])
+
+            payload_bytes = data['payload'].apply(lambda x: [int(b, 16) for b in x.split()])
+            payload_bytes = payload_bytes.apply(lambda x: x + [0] * (8 - len(x)) if len(x) < 8 else x)
+            converted_packets = np.array(payload_bytes.tolist())
+            converted_packets = converted_packets / 255.0 # Normalize value
+
+            # Preprocess packets
+            preprocessed_packets = self.__preprocess_raw_packets(converted_packets, split_into_nibbles=False)
+
+            print(f"len_preprocessed_packets = {len(preprocessed_packets)}")
+            print(f"preprocessed_packets[0] = {preprocessed_packets[0]}")
+
+            file_name = injected_raw_packets_path.split('/')[-1]
+            attack_label = file_name.split('_')[0]
+            if attack_label == 'File':
+                attack_label += f"_{file_name.split('_')[1]}"
+            print(attack_label)
+            data['label'] = data['label'].replace('T', attack_label)
+            print(data['label'].value_counts())
+
+            # Aggregate features and labels
+            aggregated_X, aggregated_y = self.__aggregate_based_on_window_size(preprocessed_packets, data)
+
+            X = np.concatenate((X, aggregated_X), axis=0, dtype='float32')
+            
+            y_df = pd.concat([y_df, pd.DataFrame(aggregated_y, columns=["label"])], ignore_index=True)
+
+        print(X.shape)
+        np.savez(f"{paths_dictionary['output_path']}/X_{self._data_suffix}_{self._output_path_suffix}", X)
+
+        y_df.to_csv(f"{paths_dictionary['output_path']}/y_{self._data_suffix}_{self._output_path_suffix}.csv")
+
+    def load_features(self, paths_dictionary: typing.Dict):
+        X = np.load(paths_dictionary['X_path'])
+        print('File loaded!')
+        X = X.f.arr_0
+        if self._sum_x == False:
+            X = X.reshape((X.shape[0], -1, self._window_size, self._number_of_columns))
+        print(f"shape X = {X.shape}")
+
+        if (self._dataset == "TOW_IDS_dataset"):
+            y = pd.read_csv(paths_dictionary['y_path'])
+            y = y.drop(columns=["Unnamed: 0"])
+            if self._dataset == "TOW_IDS_dataset_multi":
+                y["Class"] = y["Class"].map(
+                    {
+                        "Normal": 0,
+                        "C_D": 1,
+                        "C_R": 2,
+                        "M_F": 3,
+                        "P_I": 4,
+                        "F_I": 5
+                    }
+                )
+            y = np.array(y["Class"].values)
+
+        elif (self._dataset == "IN_VEHICLE_dataset"):
+            y = pd.read_csv(paths_dictionary['y_path'])
+            y = y.drop(columns=["Unnamed: 0"])
+            if self._dataset == "IN_VEHICLE_dataset":
+                y["label"] = y["label"].map(
+                    {
+                        "R": 0,
+                        "Flooding": 1,
+                        "Fuzzy": 2,
+                        "Malfunction": 3,
+                        "Replay": 4,
+                        "File_1.csv": 3,
+                        "File_3.csv": 4,
+                    }
+                )
+
+            y = np.array(y["label"].values)
+
+        else:
+            y = np.load(paths_dictionary['y_path'])
+            y = y.f.arr_0
+
+        if (self._multiclass):
+            y = y.reshape(-1, 1)
+            ohe = OneHotEncoder(handle_unknown='ignore', sparse_output=False).fit(y)
+            y = ohe.transform(y)
+
+        print(X.shape, y.shape)
+        return [[X[i], y[i]] for i in range(X.shape[0])]
+
+    def __read_raw_packets(self, pcap_filepath):
+        raw_packets = rdpcap(pcap_filepath)
+
+        raw_packets_list = []
+
+        for packet in raw_packets:
+            if self._filter_avtp_packets:
+                if (len(packet) == AVTP_PACKETS_LENGHT):
+                    raw_packets_list.append(raw(packet))
+            else:
+                raw_packets_list.append(raw(packet))
+
+        return raw_packets_list
+
+
+    def __convert_raw_packets(self, raw_packets_list, zero_padding=False):
+        converted_packets_list = []
+
+        for raw_packet in raw_packets_list:
+            converted_packet = np.frombuffer(raw_packet, dtype='uint8')
+
+            if zero_padding:
+                converted_packet_len = len(converted_packet)
+                if converted_packet_len < self._number_of_bytes:
+                    bytes_to_pad = self._number_of_bytes - converted_packet_len
+                    converted_packet = np.pad(converted_packet, (0, bytes_to_pad), 'constant')
+                else:
+                    converted_packet = converted_packet[0:self._number_of_bytes]
+
+            converted_packets_list.append(converted_packet)
+
+        converted_packets = np.array(converted_packets_list, dtype='uint8')
+        converted_packets = converted_packets / 255.0
+
+        return converted_packets
+
+
+    def __is_array_in_list_of_arrays(self, array_to_check, list_np_arrays):
+        # Reference:
+        # https://stackoverflow.com/questions/23979146/check-if-numpy-array-is-in-list-of-numpy-arrays
+        is_in_list = np.any(np.all(array_to_check == list_np_arrays, axis=1))
+
+        return is_in_list
+
+
+    def __generate_labels(self, packets_list, injected_packets):
+        labels_list = []
+
+        for packet in packets_list:
+            current_label = 0
+
+            if self.__is_array_in_list_of_arrays(packet, injected_packets):
+                current_label = 1
+
+            labels_list.append(current_label)
+
+        return labels_list
+
+
+    def __select_packets_bytes(self, packets_list):
+        selected_packets = packets_list[:, 0:self._number_of_bytes]
+
+        return np.array(selected_packets, dtype='float32')
+
+
+    def __calculate_difference_module(self, selected_packets):
+        difference_array = np.diff(selected_packets, axis=0)
+        difference_module = np.mod(difference_array, 256)
+
+        return difference_module
+
+
+    def __split_byte_into_nibbles(self, byte):
+        high_nibble = (byte >> 4) & 0xf
+        low_nibble = (byte) & 0xf
+
+        return high_nibble, low_nibble
+
+
+    def __create_nibbles_matrix(self, difference_module):
+        nibbles_matrix = []
+
+        # Difference matrix has "n" rows and "p" columns
+        for row_index in range(len(difference_module)):
+            nibbles_row = []
+            for column_index in range(len(difference_module[row_index])):
+                hi_ni, low_ni = self.__split_byte_into_nibbles(difference_module[row_index, column_index])
+
+                nibbles_row.append(hi_ni)
+                nibbles_row.append(low_ni)
+
+            nibbles_matrix.append(np.array(nibbles_row, dtype='float32'))
+
+        return np.array(nibbles_matrix, dtype='float32')
+
+    def __split_into_nibbles(self, x1):
+        # Ensure the dtype is large enough to hold the shifted values without overflow
+        x1_np = x1.astype(np.float32)
+
+        # Prepare a mask to isolate nibbles. 0xF is 1111 in binary, which isolates a nibble.
+        mask = 0xF
+
+        # Extract nibbles.
+        # The idea is to shift the original numbers right by 0 and 4 bits
+        # and then mask off the lower 4 bits.
+        nibbles = np.zeros((x1_np.shape[0], x1_np.shape[1] * 2), dtype=np.float32)
+
+        for i in range(0, 2):
+            nibbles[:, int(not i)::2] = (x1_np >> (i * 4)) & mask
+
+        return nibbles
+
+
+    def __preprocess_raw_packets(self, converted_packets, split_into_nibbles=True):
+        # Select first 58 bytes
+        selected_packets = self.__select_packets_bytes(converted_packets)
+
+        # Calculate difference and module between rows
+        # selected_packets = self.__calculate_difference_module(selected_packets)
+
+        # Split difference into two nibbles
+        if split_into_nibbles:
+            # selected_packets = self.__create_nibbles_matrix(selected_packets)
+            selected_packets = self.__split_into_nibbles(selected_packets)
+
+        return selected_packets
+
+
+    def __preprocess_raw_packets_into_bits(self, converted_packets, split_into_nibbles=True):
+        # Select first 58 bytes
+        selected_packets = self.__select_packets_bytes(converted_packets)
+
+        # Split difference into two nibbles
+        if split_into_nibbles:
+            # diff_module_packets = self.__create_nibbles_matrix(diff_module_packets)
+            diff_module_packets = self.__split_into_nibbles(diff_module_packets)
+
+        return diff_module_packets
+
+
+    def __aggregate_based_on_window_size(self, x_data, y_data):
+        # Prepare the list for the transformed data
+        X, y = list(), list()
+
+        # Loop of the entire data set
+        for i in range(x_data.shape[0]):
+            # Compute a new (sliding window) index
+            start_ix = i*(self._window_slide)
+            end_ix = start_ix + self._window_size - 1 + 1
+
+            # If index is larger than the size of the dataset, we stop
+            if end_ix >= x_data.shape[0]:
+                break
+
+            # Get a sequence of data for x
+            seq_X = x_data[start_ix:end_ix]
+            if self._sum_x:
+                seq_X = np.sum(seq_X, axis=0)
+
+            # Get a squence of data for y
+            tmp_seq_y = y_data[start_ix : end_ix]
+
+            # Labeling schema
+            seq_y = LABELING_SCHEMA_FACTORY[self._labeling_schema](tmp_seq_y)
+
+            # Append the list with sequences
+            X.append(seq_X)
+            y.append(seq_y)
+
+        # Make final arrays
+        x_array = np.array(X, dtype='float32')
+        # y_array = np.array(y, dtype='float32')
+
+        return x_array, y
+    
+    def benchmark_execution_time(self):
+        print(">> Benchmarking feature generator execution time")
+        n_iter = 10000
+        execution_time_list = []
+        # preprocess_time_list = []
+        # agg_time_list = []
+        # select_time_list = []
+        # diff_time_list = []
+        # nibble_time_list = []
+
+        labels=0
+
+        for i in range(n_iter):
+            # Random input in the shape of the data
+            # Regenerate at each iteration to avoid it to be in cache and bias the measurement
+            random_packets = (255*np.random.rand(45, 56)).astype('float32')
+            # start_time = time.time()
+            start_time = time.perf_counter_ns()
+            # Preprocess packets
+            preprocessed_packets = self.__preprocess_raw_packets(random_packets, split_into_nibbles=True)
+            # Select first 58 bytes
+            # selected_packets = self.__select_packets_bytes(random_packets)
+            # select_bytes_time = time.perf_counter_ns()
+
+            # Calculate difference and module between rows
+            # diff_module_packets = self.__calculate_difference_module(selected_packets)
+            # diff_module_time = time.perf_counter_ns()
+
+            # Split difference into two nibbles
+            # diff_module_packets = self.__split_into_nibbles(diff_module_packets)
+            # preprocess_end = time.perf_counter_ns()
+
+            # Aggregate features and labels
+            aggregated_X, aggregated_y = self.__aggregate_based_on_window_size(preprocessed_packets, labels)
+            # end_time = time.time()
+            end_time = time.perf_counter_ns()
+            elapsed_total_time = end_time - start_time
+            # elapsed_agg_time = end_time - preprocess_end
+            # elapsed_preprocess_time = preprocess_end - start_time
+            # elapsed_select_time = select_bytes_time - start_time
+            # elapsed_diff_time = diff_module_time - select_bytes_time
+            # elapsed_nibble_time = preprocess_end - diff_module_time
+
+            execution_time_list.append(elapsed_total_time)
+            # preprocess_time_list.append(elapsed_preprocess_time)
+            # agg_time_list.append(elapsed_agg_time)
+            # select_time_list.append(elapsed_agg_time)
+            # diff_time_list.append(elapsed_diff_time)
+            # nibble_time_list.append(elapsed_nibble_time)
+
+        # Compute the elapsed time
+        mean_execution_time = np.mean(execution_time_list)
+        std_execution_time = np.std(execution_time_list)
+
+        # mean_preprocess_time = np.mean(preprocess_time_list)
+        # std_preprocess_time = np.std(preprocess_time_list)
+
+        # mean_agg_time = np.mean(agg_time_list)
+        # std_agg_time = np.std(agg_time_list)
+
+        # mean_select_time = np.mean(select_time_list)
+        # std_select_time = np.std(select_time_list)
+
+        # mean_diff_time = np.mean(diff_time_list)
+        # std_diff_time = np.std(diff_time_list)
+
+        # mean_nibble_time = np.mean(nibble_time_list)
+        # std_nibble_time = np.std(nibble_time_list)
+
+        print(f"Mean execution time: {mean_execution_time}, Std: {std_execution_time}")
+        # print(f"Mean preprocess time: {mean_preprocess_time}, Std: {std_preprocess_time}")
+        # print(f"Mean select time: {mean_select_time}, Std: {std_select_time}")
+        # print(f"Mean diff time: {mean_diff_time}, Std: {std_diff_time}")
+        # print(f"Mean nibble time: {mean_nibble_time}, Std: {std_nibble_time}")
+        # print(f"Mean agg time: {mean_agg_time}, Std: {std_agg_time}")

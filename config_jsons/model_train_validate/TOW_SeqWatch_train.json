@@ -1,0 +1,41 @@
+{
+    "feat_gen": {
+        "feature_generator": "AnomalyDetectionFeatureGenerator",
+        "config": {
+            "is_supervised": false,
+            "window_size": 128,
+            "window_slide": 1,
+            "number_of_bytes": 58,
+            "multiclass": true,
+            "labeling_schema": "TOW_IDS_dataset_multi_class",
+            "dataset": "TOW_IDS_dataset"
+        },
+        "load_paths": {
+            "X_path": "./dataset/tow-intrusion-dataset/processed/X_train_TOW_IDS_dataset_multi_class_Wsize_128_Cols_58_Wslide_1_MC_True_sumX_False.npz",
+            "y_path": "./dataset/tow-intrusion-dataset/processed/y_train_TOW_IDS_dataset_multi_class_Wsize_128_Cols_58_Wslide_1_MC_True_sumX_False.csv"
+        }
+    },
+    "model_specs": {
+        "framework": "pytorch",
+        "model": "SeqWatch",
+        "model_name": "SeqWatch",
+        "model_type": "anomaly_detection",
+        "criterion": "mean-squared-error",
+        "cross_validation_folds": 2,
+        "hyperparameters": {
+            "hidden_size": 16,
+            "batch_size": 64,
+            "learning_rate": 0.001,
+            "num_epochs": 250,
+            "early_stopping_patience": 5,
+            "num_outputs": 1
+        },
+        "paths": {
+            "metrics_output_path":"./workspace/metrics",
+            "models_output_path":"./workspace/models"
+        },
+        "presaved_paths": {
+            "0": "./workspace/TOW_IDS/SeqWatch_16/2024_11_23_13_10_03_pytorch_train/models/TOW_IDS_dataset_pytorch_model_SeqWatch_0"
+        }
+    }
+}

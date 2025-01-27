@@ -1,0 +1,28 @@
+{
+    "feature_generator": "AnomalyDetectionFeatureGenerator",
+    "config": {
+        "is_supervised": false,
+        "window_size": 16,
+        "window_slide": 1,
+        "number_of_bytes": 8,
+        "multiclass": true,
+        "labeling_schema": "IN_VEHICLE_dataset_multi_class",
+        "dataset": "IN_VEHICLE_dataset",
+        "suffix": "train",
+        "sum_x": false
+    },
+    "paths": {
+        "attack_free_paths": [
+            ""
+        ],
+        "injected_paths": [
+            "dataset/invehicle-intrusion-dataset/raw/car_track_final_2nd_train/Malfunction_2nd_HY_Sonata_train.csv",
+            "dataset/invehicle-intrusion-dataset/raw/car_track_final_2nd_train/Replay_dataset_HY_Sonata_train.csv"
+        ],
+        "output_path": "./dataset/invehicle-intrusion-dataset/processed"
+    },
+    "load_paths": {
+        "X_path": "./dataset/invehicle-intrusion-dataset/processed/X_train_IN_VEHICLE_dataset_multi_class_Wsize_16_Cols_8_Wslide_1_MC_True.npz",
+        "y_path": "./dataset/invehicle-intrusion-dataset/processed/y_train_IN_VEHICLE_dataset_multi_class_Wsize_16_Cols_8_Wslide_1_MC_True.csv"
+    }
+}

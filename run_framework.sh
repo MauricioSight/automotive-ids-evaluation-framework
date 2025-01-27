@@ -1,15 +1,15 @@
 #!/bin/bash
 
 # Paths
-BASE_PATH="/home/lfml/workspace/automotive-ids-evaluation-framework"
-FEAT_GEN_CONFIG_FOLDER="config_jsons/feat_generator"
-MODEL_TRAIN_VALID_CONFIG_FOLDER="config_jsons/model_train_validate"
-MODEL_TEST_CONFIG_FOLDER="config_jsons/model_test"
-DETECTION_TIME_CONFIG_FOLDER="config_jsons/test_detection_time"
+# BASE_PATH="/home/lfml/workspace/automotive-ids-evaluation-framework"
+# FEAT_GEN_CONFIG_FOLDER="config_jsons/feat_generator"
+# MODEL_TRAIN_VALID_CONFIG_FOLDER="config_jsons/model_train_validate"
+# MODEL_TEST_CONFIG_FOLDER="config_jsons/model_test"
+# DETECTION_TIME_CONFIG_FOLDER="config_jsons/test_detection_time"
 
 # Change this according to the desired configuration
 ## Feat generator configs
-SELECTED_FEAT_GEN_CONFIG="AVTP_CNNIDS_train.json"
+# SELECTED_FEAT_GEN_CONFIG="AVTP_CNNIDS_train.json"
 # SELECTED_FEAT_GEN_CONFIG="TOW_CNNIDS_Multiclass_train.json"
 # SELECTED_FEAT_GEN_CONFIG="TOW_CNNIDS_Oneclass_train.json"
 
@@ -30,17 +30,17 @@ SELECTED_FEAT_GEN_CONFIG="AVTP_CNNIDS_train.json"
 # SELECTED_MODEL_TEST_CONFIG="TOW_MC_PrunedCNNIDS_test_multiple_folds.json"
 
 ## Detection time IDS
-SELECTED_DETECTION_TIME_IDS_CONFIG="AVTP_PrunedCNNIDS_detection_time.json"
-SELECTED_DETECTION_TIME_IDS_CONFIG="AVTP_RandomForest_detection_time.json"
+# SELECTED_DETECTION_TIME_IDS_CONFIG="AVTP_PrunedCNNIDS_detection_time.json"
+# SELECTED_DETECTION_TIME_IDS_CONFIG="AVTP_RandomForest_detection_time.json"
 
 # DO NOT CHANGE FROM THIS POINT ON
-FEAT_GEN_CONFIG_PATH="${BASE_PATH}/${FEAT_GEN_CONFIG_FOLDER}/${SELECTED_FEAT_GEN_CONFIG}"
-MODEL_TRAIN_VALID_CONFIG_PATH="${BASE_PATH}/${MODEL_TRAIN_VALID_CONFIG_FOLDER}/${SELECTED_MODEL_TRAIN_VALIDATE_CONFIG}"
-MODEL_TEST_CONFIG_PATH="${BASE_PATH}/${MODEL_TEST_CONFIG_FOLDER}/${SELECTED_MODEL_TEST_CONFIG}"
-DETECTION_TIME_CONFIG_PATH="${BASE_PATH}/${DETECTION_TIME_CONFIG_FOLDER}/${SELECTED_DETECTION_TIME_IDS_CONFIG}"
+# FEAT_GEN_CONFIG_PATH="${BASE_PATH}/${FEAT_GEN_CONFIG_FOLDER}/${SELECTED_FEAT_GEN_CONFIG}"
+# MODEL_TRAIN_VALID_CONFIG_PATH="${BASE_PATH}/${MODEL_TRAIN_VALID_CONFIG_FOLDER}/${SELECTED_MODEL_TRAIN_VALIDATE_CONFIG}"
+# MODEL_TEST_CONFIG_PATH="${BASE_PATH}/${MODEL_TEST_CONFIG_FOLDER}/${SELECTED_MODEL_TEST_CONFIG}"
+# DETECTION_TIME_CONFIG_PATH="${BASE_PATH}/${DETECTION_TIME_CONFIG_FOLDER}/${SELECTED_DETECTION_TIME_IDS_CONFIG}"
 
 # Run the feature generator step
-venv/bin/python3 execute_feature_generator.py --feat_gen_config ${FEAT_GEN_CONFIG_PATH} --bench_time
+# venv/bin/python3 execute_feature_generator.py --feat_gen_config ${FEAT_GEN_CONFIG_PATH} --bench_time
 
 # Run the model training and validation step
 # venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ${MODEL_TRAIN_VALID_CONFIG_PATH}
@@ -53,3 +53,69 @@ venv/bin/python3 execute_feature_generator.py --feat_gen_config ${FEAT_GEN_CONFI
 
 # Run the detection time experiments
 # venv/bin/python3 execute_model_test.py --model_test_config ${DETECTION_TIME_CONFIG_PATH}
+
+# --------------------- DATASET AVTP ---------------------
+
+# Run the feature generator step
+# venv/bin/python3 execute_feature_generator.py --feat_gen_config ./config_jsons/feat_generator/AVTP_AnomalyDetection_train.json
+# venv/bin/python3 execute_feature_generator.py --feat_gen_config ./config_jsons/feat_generator/AVTP_AnomalyDetection_test.json
+
+# venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ./config_jsons/model_train_validate/AVTP_CAE_train.json
+# venv/bin/python3 execute_model_test.py --model_test_config ./config_jsons/model_test/IN_VEHICLE_CAE_test.json
+
+# venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ./config_jsons/model_train_validate/AVTP_LSTMAE_train.json
+# venv/bin/python3 execute_model_test.py --model_test_config ./config_jsons/model_test/IN_VEHICLE_LSTMAE_test.json
+
+# venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ./config_jsons/model_train_validate/AVTP_SeqWatch_train.json
+# venv/bin/python3 execute_model_test.py --model_test_config ./config_jsons/model_test/IN_VEHICLE_SeqWatch_test.json
+
+# venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ./config_jsons/model_train_validate/IN_VEHICLE_SeqWatchAttention_train.json
+# venv/bin/python3 execute_model_test.py --model_test_config ./config_jsons/model_test/IN_VEHICLE_SeqWatchAttention_test.json
+
+
+# --------------------- DATASET TOW IDS ---------------------
+
+# Run the feature generator step
+# venv/bin/python3 execute_feature_generator.py --feat_gen_config ./config_jsons/feat_generator/TOW_AnomalyDetection_Multiclass_train.json
+# venv/bin/python3 execute_feature_generator.py --feat_gen_config ./config_jsons/feat_generator/TOW_AnomalyDetection_Multiclass_test.json
+
+# Run the model training, validation and test step
+# venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ./config_jsons/model_train_validate/TOW_CAE_train.json
+# venv/bin/python3 execute_model_test.py --model_test_config ./config_jsons/model_test/TOW_CAE_test.json
+
+# venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ./config_jsons/model_train_validate/TOW_LSTMAE_train.json
+# venv/bin/python3 execute_model_test.py --model_test_config ./config_jsons/model_test/TOW_LSTMAE_test.json
+
+# venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ./config_jsons/model_train_validate/TOW_SeqWatch_train.json
+# venv/bin/python3 execute_model_test.py --model_test_config ./config_jsons/model_test/TOW_SeqWatch_test.json
+
+# venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ./config_jsons/model_train_validate/TOW_SeqWatchAttention_train.json
+# venv/bin/python3 execute_model_test.py --model_test_config ./config_jsons/model_test/TOW_SeqWatchAttention_test.json
+
+
+# --------------------- DATASET IN VEHICLE ---------------------
+
+# Run the feature generator step
+# venv/bin/python3 execute_feature_generator.py --feat_gen_config ./config_jsons/feat_generator/IN_VEHICLE_AnomalyDetection_Multiclass_train.json
+# venv/bin/python3 execute_feature_generator.py --feat_gen_config ./config_jsons/feat_generator/IN_VEHICLE_AnomalyDetection_Multiclass_test.json
+
+# venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ./config_jsons/model_train_validate/IN_VEHICLE_CAE_train.json
+# venv/bin/python3 execute_model_test.py --model_test_config ./config_jsons/model_test/IN_VEHICLE_CAE_test.json
+
+# venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ./config_jsons/model_train_validate/IN_VEHICLE_LSTMAE_train.json
+# venv/bin/python3 execute_model_test.py --model_test_config ./config_jsons/model_test/IN_VEHICLE_LSTMAE_test.json
+
+# venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ./config_jsons/model_train_validate/IN_VEHICLE_SeqWatch_train.json
+# venv/bin/python3 execute_model_test.py --model_test_config ./config_jsons/model_test/IN_VEHICLE_SeqWatch_test.json
+
+# venv/bin/python3 execute_model_train_validation.py --model_train_valid_config ./config_jsons/model_train_validate/IN_VEHICLE_SeqWatchAttention_train.json
+# venv/bin/python3 execute_model_test.py --model_test_config ./config_jsons/model_test/IN_VEHICLE_SeqWatchAttention_test.json
+
+
+# --------------------- OPTIMIZER ---------------------
+
+# venv/bin/python3 execute_model_train_validation_optimizer.py --model_train_valid_config ./config_jsons/model_train_validate/IN_VEHICLE_SeqWatch_train.json
+
+# venv/bin/python3 execute_model_train_validation_optimizer.py --model_train_valid_config ./config_jsons/model_train_validate/IN_VEHICLE_CAE_train.json
+
+# venv/bin/python3 execute_model_train_validation_optimizer.py --model_train_valid_config ./config_jsons/model_train_validate/IN_VEHICLE_LSTMAE_train.json

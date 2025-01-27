@@ -1,0 +1,45 @@
+{
+    "feat_gen": {
+        "feature_generator": "AnomalyDetectionFeatureGenerator",
+        "config": {
+            "is_supervised": false,
+            "window_size": 16,
+            "window_slide": 1,
+            "number_of_bytes": 8,
+            "multiclass": true,
+            "labeling_schema": "IN_VEHICLE_dataset_multi_class",
+            "dataset": "IN_VEHICLE_dataset",
+            "suffix": "train",
+            "sum_x": false
+        },
+        "load_paths": {
+            "X_path": "./dataset/invehicle-intrusion-dataset/processed/X_test_IN_VEHICLE_dataset_multi_class_Wsize_16_Cols_8_Wslide_1_MC_True_sumX_False.npz",
+            "y_path": "./dataset/invehicle-intrusion-dataset/processed/y_test_IN_VEHICLE_dataset_multi_class_Wsize_16_Cols_8_Wslide_1_MC_True_sumX_False.csv"
+        }
+    },
+    "model_specs": {
+        "framework": "pytorch",
+        "model": "LSTMAEAnomalyDetector",
+        "model_name": "LSTMAEAnomalyDetector",
+        "model_type": "anomaly_detection",
+        "criterion": "mean-squared-error",
+        "cross_validation_folds": 2,
+        "hyperparameters": {
+            "threshold": 0.0023086267,
+            "hidden_size": 1024,
+            "batch_size": 32,
+            "learning_rate": 0.001,
+            "num_epochs": 1,
+            "early_stopping_patience": 5,
+            "num_outputs": 1
+        },
+        "paths": {
+            "metrics_output_path":"./workspace/metrics",
+            "models_output_path":"./workspace/models",
+            "forward_output_path":"./workspace/forward"
+        },
+        "presaved_paths": {
+            "0": "./workspace/artifacts/2024_12_09_23_25_01_pytorch_train/models/IN_VEHICLE_dataset_pytorch_model_LSTMAEAnomalyDetector_0"
+        }
+    }
+}

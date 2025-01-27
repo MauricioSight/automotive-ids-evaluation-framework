@@ -4,6 +4,7 @@ ABNORMAL_KEY = "Abnormal"
 INDEX_COLUMN = "index"
 DESCRIPTION_COLUMN = "Description"
 CLASS_COLUMN = "Class"
+INVEHICLE_ATTACK_LABELS = ["Flooding", "Fuzzy", "Malfunction", "Replay", "File_1.csv", "File_2.csv", "File_3.csv", "File_4.csv"]
 
 def avtp_intrusion_labeling_schema(y_sequence):
     # Expects y_sequence as a list
@@ -40,6 +41,26 @@ def tow_ids_multi_class_labeling_schema(y_sequence):
 
     if intersect is True:
         attacks_mask = indexes[INDEX_COLUMN].isin(TOW_IDS_ATTACK_LABELS)
+        indexes_attacks = indexes[attacks_mask]
+        seq_y = indexes_attacks[INDEX_COLUMN].values[0]
+
+    return seq_y
+
+def invehicle_intrusion_labeling_schema(y_sequence):
+    # Expects y_sequence as a dataframe containing ["label"] column
+    # Labeling schema: if there is an attack in the sequence, the sequence is considered as an attack
+    seq_y = "R"
+
+    indexes = y_sequence["label"].value_counts().sort_values(ascending=False).reset_index()
+    indexes_list = list(indexes[INDEX_COLUMN].values)
+
+    set_attacks = set(INVEHICLE_ATTACK_LABELS)
+    set_sequence_indexes = set(indexes_list)
+
+    intersect = any(set_atk in set_sequence_indexes for set_atk in set_attacks)
+
+    if intersect is True:
+        attacks_mask = indexes[INDEX_COLUMN].isin(INVEHICLE_ATTACK_LABELS)
         indexes_attacks = indexes[attacks_mask]
         seq_y = indexes_attacks[INDEX_COLUMN].values[0]
 

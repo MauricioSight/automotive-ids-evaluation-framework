@@ -1,0 +1,25 @@
+{
+    "feature_generator": "AnomalyDetectionFeatureGenerator",
+    "config": {
+        "is_supervised": false,
+        "window_size": 128,
+        "window_slide": 1,
+        "number_of_bytes": 58,
+        "multiclass": true,
+        "labeling_schema": "TOW_IDS_dataset_multi_class",
+        "dataset": "TOW_IDS_dataset",
+        "suffix": "train",
+        "sum_x": false
+    },
+    "paths": {
+        "test_packets_path": "./dataset/tow-intrusion-dataset/raw/Automotive_Ethernet_with_Attack_original_10_17_19_50_training.pcap",
+        "training_packets_path": "./dataset/tow-intrusion-dataset/raw/Automotive_Ethernet_with_Attack_original_10_17_19_50_training.pcap",
+        "y_test_path": "./dataset/tow-intrusion-dataset/raw/y_train.csv",
+        "y_train_path": "./dataset/tow-intrusion-dataset/raw/y_train.csv",
+        "output_path": "./dataset/tow-intrusion-dataset/processed"
+    },
+    "load_paths": {
+        "X_path": "./dataset/tow-intrusion-dataset/processed/X_test_TOW_IDS_dataset_multi_class_Wsize_128_Cols_58_Wslide_1_MC_False.npz",
+        "y_path": "./dataset/tow-intrusion-dataset/processed/y_test_TOW_IDS_dataset_multi_class_Wsize_128_Cols_58_Wslide_1_MC_False.csv"
+    }
+}
